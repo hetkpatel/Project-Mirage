@@ -4,7 +4,7 @@ from mimetypes import guess_type
 from PIL import Image
 from PIL.ExifTags import TAGS
 from pillow_heif import register_heif_opener
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 register_heif_opener()
 

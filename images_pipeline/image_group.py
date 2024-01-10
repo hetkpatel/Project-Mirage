@@ -1,6 +1,6 @@
 from torch import load as tload
 from torch.nn.functional import cosine_similarity as cos
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from json import dump, load
 from os import path, walk, makedirs
 from shutil import copy
@@ -10,11 +10,8 @@ from uuid import uuid4
 THRESHOLD = 0.832104802131654
 
 
-def process(session, DEBUG):
+def process(session):
     clusters = {}
-
-    if DEBUG:
-        delta_table = {}
 
     files = [
         path.join(root, f)
@@ -25,15 +22,8 @@ def process(session, DEBUG):
     for file in tqdm(desc="Finding duplicates", iterable=files):
         similar_images = _calculate_cosine_delta(file, files)
         clusters[file] = list(similar_images.keys())
-        if DEBUG:
-            delta_table[file] = similar_images
 
-    if DEBUG:
-        # output delta_table to a json file
-        with open(f"./.tmp/{session}/i/delta_table.json", "w") as f:
-            dump(delta_table, f)
-
-    def get_cluster(node):
+    def _get_cluster(node):
         cluster = set()
         stack = [node]
 
@@ -51,7 +41,7 @@ def process(session, DEBUG):
     checked = set()
     for k, _ in clusters.items():
         if k not in checked:
-            cluster = get_cluster(k)
+            cluster = _get_cluster(k)
             groups[len(groups)] = cluster
             checked.update(cluster)
 
