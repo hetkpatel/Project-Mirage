@@ -1,4 +1,4 @@
-# LensLib v0.1.2
+# LensLib v0.1.3
 
 LensLib is a command-line utility designed to organize and process photos and videos in a specified directory or directories. The project provides functionalities such as duplicate detection, culling, and organization.
 

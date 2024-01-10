@@ -77,6 +77,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
 
 # IPython
 profile_default/
@@ -159,4 +160,4 @@ reports/
 TEST/
 .tmp/
 output/
-*.ipynb
+.vscode/
