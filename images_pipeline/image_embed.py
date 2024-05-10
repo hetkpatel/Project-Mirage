@@ -16,12 +16,33 @@ def process(session, input):
     try:
         model = ie.ResNet50_ImageEmbedder()
 
+        def validate_source(source):
+            try:
+                if guess_type(source)[0].startswith("image/"):
+                    return [source]
+            except:
+                pass
+
+            return []
+
         file_list = []
         for i in input:
-            file_list += _validate_source(i)
+            file_list += validate_source(i)
 
         if not path.exists(f"./.tmp/{session}/vectors"):
             makedirs(f"./.tmp/{session}/vectors")
+
+        def save_id_to_file(session, id, filename):
+            # check if embedding map file exists, if not create it
+            if not path.exists(f"./.tmp/{session}/embedding_map.json"):
+                with open(f"./.tmp/{session}/embedding_map.json", "w") as f:
+                    dump({}, f)
+
+            with open(f"./.tmp/{session}/embedding_map.json", "r") as j:
+                data = load(j)
+                data[id] = filename
+                with open(f"./.tmp/{session}/embedding_map.json", "w") as f:
+                    dump(data, f)
 
         model.eval()
         with torch.no_grad():
@@ -35,30 +56,8 @@ def process(session, input):
                 id = uuid4().hex
                 torch.save(vector, f"./.tmp/{session}/vectors/{id}.pt")
                 # save id and file path in tmp session folder in json file
-                _save_id_to_file(session, id, path.abspath(file))
+                # TODO: save_id_to_file(session, id, path.basename(file))
+                save_id_to_file(session, id, path.abspath(file))
 
     except Exception as e:
         raise e
-
-
-def _validate_source(source):
-    try:
-        if guess_type(source)[0].startswith("image/"):
-            return [source]
-    except:
-        pass
-
-    return []
-
-
-def _save_id_to_file(session, id, filename):
-    # check if embedding map file exists, if not create it
-    if not path.exists(f"./.tmp/{session}/embedding_map.json"):
-        with open(f"./.tmp/{session}/embedding_map.json", "w") as f:
-            dump({}, f)
-
-    with open(f"./.tmp/{session}/embedding_map.json", "r") as j:
-        data = load(j)
-        data[id] = filename
-        with open(f"./.tmp/{session}/embedding_map.json", "w") as f:
-            dump(data, f)

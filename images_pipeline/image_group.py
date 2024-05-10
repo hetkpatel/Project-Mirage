@@ -1,20 +1,16 @@
 from torch import load as tload
+import pyiqa
 from torch.nn.functional import cosine_similarity as cos
 from tqdm import tqdm
 from json import dump, load
-from os import path, walk, makedirs
-from shutil import copy
-from uuid import uuid4
+from os import path, walk
 
 # .832104802131654 - resnet50
 THRESHOLD = 0.832104802131654
 
 
-def process(session, DEBUG):
+def process(session):
     clusters = {}
-
-    if DEBUG:
-        delta_table = {}
 
     files = [
         path.join(root, f)
@@ -22,18 +18,23 @@ def process(session, DEBUG):
         for f in files
     ]
 
+    def calculate_cosine_delta(target, batch) -> dict[str, float]:
+        result = {target: 1.0}
+        target_tensor = tload(target).unsqueeze(dim=0)
+
+        for k in batch:
+            if k != target:
+                cos_sim = cos(target_tensor, tload(k).unsqueeze(dim=0))[0].item()
+                if cos_sim >= THRESHOLD:
+                    result[k] = cos_sim
+
+        return result
+
     for file in tqdm(desc="Finding duplicates", iterable=files):
-        similar_images = _calculate_cosine_delta(file, files)
+        similar_images = calculate_cosine_delta(file, files)
         clusters[file] = list(similar_images.keys())
-        if DEBUG:
-            delta_table[file] = similar_images
 
-    if DEBUG:
-        # output delta_table to a json file
-        with open(f"./.tmp/{session}/delta_table.json", "w") as f:
-            dump(delta_table, f)
-
-    def get_cluster(node):
+    def get_cluster(node) -> list:
         cluster = set()
         stack = [node]
 
@@ -45,7 +46,7 @@ def process(session, DEBUG):
                 if neighbor not in cluster:
                     stack.append(neighbor)
 
-        return cluster
+        return list(cluster)
 
     groups = {}
     checked = set()
@@ -55,37 +56,31 @@ def process(session, DEBUG):
             groups[len(groups)] = cluster
             checked.update(cluster)
 
+    print(groups)
+
     # save images to the .tmp/session folder in their respective groups
+    similarity_results = {}
     with open(f"./.tmp/{session}/embedding_map.json", "r") as em:
         embedding_map = load(em)
-        for k, v in groups.items():
-            folder = path.join(
-                f"./output/{session}/images/", uuid4().hex if len(v) != 1 else "single"
-            )
-            if not path.exists(folder):
-                makedirs(folder)
-            for f in v:
-                id = path.basename(f).split(".")[0]
+        topiq_iaa = pyiqa.create_metric("topiq_iaa")
+        for _, similarImageEmbedIds in groups.items():
+            imageList = []
+            # Group similar images with real path
+            for embedId in similarImageEmbedIds:
+                id = path.basename(embedId).split(".")[0]
                 org_path = embedding_map[id]
-                copy(
-                    org_path,
-                    path.join(
-                        folder,
-                        path.basename(org_path)[: path.basename(org_path).rfind(".")]
-                        + f".{id[:16]}"
-                        + path.basename(org_path)[path.basename(org_path).rfind(".") :],
-                    ),
-                )
+                imageList.append(org_path)
 
+            # Find best quality image from group
+            best_quality_image = ""
+            best_quality = 0
+            for image in imageList:
+                quality = topiq_iaa(image).item()
+                if quality > best_quality:
+                    best_quality_image = image
+                    best_quality = quality
 
-def _calculate_cosine_delta(target, batch):
-    result = {target: 1.0}
-    target_tensor = tload(target).unsqueeze(dim=0)
+            similarity_results[best_quality_image] = imageList
 
-    for k in batch:
-        if k != target:
-            cos_sim = cos(target_tensor, tload(k).unsqueeze(dim=0))[0].item()
-            if cos_sim >= THRESHOLD:
-                result[k] = cos_sim
-
-    return result
+    with open(f"./.tmp/{session}/similarity_results.json", "w") as f:
+        dump(similarity_results, f)

@@ -1,14 +1,11 @@
-from os import walk, path, makedirs
+from os import walk, path
 from uuid import uuid4
-from shutil import rmtree
 import sys
 from mimetypes import guess_type
 from argparse import ArgumentParser, ArgumentTypeError
 
 import images_pipeline.image_embed as iemb
 import images_pipeline.image_group as igrp
-import images_pipeline.quality_check as iqc
-import images_pipeline.order_date as iord
 
 
 def main():
@@ -20,10 +17,7 @@ def main():
 
     parser = ArgumentParser(prog="LensLib")
     parser.add_argument(dest="dir", type=_is_valid_path, nargs="+")
-    parser.add_argument("--dry_run", "--dry", action="store_true")
     parser.add_argument("--show_unsupported_files", "-u", action="store_true")
-    parser.add_argument("--quality_check", "-q", action="store_true")
-    parser.add_argument("--order_by_date", "-o", action="store_true")
     args = parser.parse_args()
 
     # Build list of images and videos
@@ -83,78 +77,29 @@ def main():
     # Clean up
     del formats, unsupported_files, content
 
-    # CHECK DRY RUN REQUIREMENT
-    DRY_RUN_CHECK = False
-    # DRY_RUN_CHECK = args.dry_run
-    # if not DRY_RUN_CHECK:
-    #     if (
-    #         input(
-    #             "\nWARNING: This is NOT a dry run. Continue? (Type CONTINUE to move forward, any key to cancel): "
-    #         )
-    #         .strip()
-    #         .lower()
-    #         != "continue"
-    #     ):
-    #         print("Canceling run...")
-    #         sys.exit(0)
-    #     else:
-    #         print(
-    #             "------------------------------------------------------\nDRY RUN MODE DISABLED: Files or directories WILL BE modified.\n------------------------------------------------------\n"
-    #         )
-    # else:
-    #     print(
-    #         "------------------------------------------------------\nDRY RUN MODE ENABLED: No files or directories will be modified.\n------------------------------------------------------\n"
-    #     )
+    # START
+    # Create session ID
+    session = uuid4().hex
+    print(f"\nSession ID: {session}\n")
 
-    # if DRY_RUN_CHECK:
-    #     sys.exit(0)
+    if video_flag:
+        # TODO: Start Video Embedding
+        pass
+    else:
+        print("Skipping videos since no video files found\n")
 
-    # START ------------------------------------------------------
-    if not DRY_RUN_CHECK:  # Extra layer of safety
-        # Create session ID
-        session = uuid4().hex
-        print(f"\nSession ID: {session}\n")
+    if image_flag:
+        # Start Image Embedding
+        print("START: Creating Image Embedding")
+        iemb.process(session=session, input=list_of_files)
+        print("FINISH\n")
 
-        # Make 'tmp' folder
-        if not path.exists(f"./.tmp/{session}/i"):
-            makedirs(f"./.tmp/{session}/i")
-        if not path.exists(f"./.tmp/{session}/v"):
-            makedirs(f"./.tmp/{session}/v")
+        print("START: Grouping Images")
+        igrp.process(session=session)
+        print("FINISH\n")
 
-        # Make 'output' folder
-        if not path.exists(f"./output/{session}/images"):
-            makedirs(f"./output/{session}/images")
-        if not path.exists(f"./output/{session}/videos"):
-            makedirs(f"./output/{session}/videos")
-
-        if video_flag:
-            pass
-        else:
-            print("Skipping videos since no video files found\n")
-
-        if image_flag:
-            # Start Image Embedding
-            print("START: Creating Image Embedding")
-            iemb.process(session=session, input=list_of_files)
-            print("FINISH\n")
-
-            print("START: Grouping Images")
-            igrp.process(session=session)
-            print("FINISH\n")
-
-            if args.quality_check:
-                print("START: Image Quality Check")
-                iqc.process(session=session)
-                print("FINISH\n")
-
-            if args.order_by_date:
-                print("START: Order by Date")
-                iord.process(session=session)
-                print("FINISH\n")
-        else:
-            print("Skipping images since no video files found\n")
-
-    # rmtree(f"./.tmp")
+    else:
+        print("Skipping images since no video files found\n")
 
 
 if __name__ == "__main__":
